@@ -33,17 +33,18 @@ var (
   }
 )
 
-type domainList struct {
-  domains []string // domains in each certificate
-  phishing []int   // phishing indicators
-  suspicious []int // suspicious indicators
-}
-
 type domainParts struct {
   raw string
   domain string
   subdomain string
   tld string
+}
+
+type domainList struct {
+  rawDomains []string // domains from the certificate
+  phishing []int   // phishing indicators
+  suspicious []int // suspicious indicators
+  domains []domainParts
 }
 
 // newDomainList constructs a new domainList from a JsonQuery object.
@@ -55,7 +56,7 @@ func newDomainList(jq jsonq.JsonQuery) (*domainList, error) {
   }
 
   return &domainList{
-    domains: d,
+    rawDomains: d,
   }, nil
 }
 
@@ -102,7 +103,7 @@ func (dl *domainList) deDupeDomains() {
   seen := map[string]bool{}
   result := []string{}
 
-  for _, domain := range dl.domains {
+  for _, domain := range dl.rawDomains {
     // Replace wildcard cert with a generic subdomain.
     if strings.HasPrefix(domain, "*.") {
       domain = strings.Replace(domain, "*.", "www.", 1)
@@ -114,14 +115,14 @@ func (dl *domainList) deDupeDomains() {
     }
   }
   // Overwrite the receivers domains list.
-  dl.domains = result
+  dl.rawDomains = result
 }
 
 // resolvePunycode replaces IDN representations with an ASCII approximation in a domainList.
 func (dl *domainList) resolvePunycode() {
   result := []string{}
 
-  for _, domain := range dl.domains {
+  for _, domain := range dl.rawDomains {
     // For PunyCode domains, get a Unicode representation.
     if strings.HasPrefix(domain, "xn--") {
       unicodeDomain, err := idna.Punycode.ToUnicode(domain)
@@ -136,6 +137,22 @@ func (dl *domainList) resolvePunycode() {
   }
 
   // Overwrite the receivers domains list.
+  dl.rawDomains = result
+}
+
+func (dl *domainList) extractDomainParts() {
+  result := []domainParts{}
+
+  // Iterate over the list of domains.
+  for _, d := range dl.rawDomains {
+    p, err := newDomainParts(d)
+    if err != nil{
+      logger.Print(err.Error())
+    }
+
+    result = append(result, *p)
+  }
+
   dl.domains = result
 }
 
@@ -157,13 +174,9 @@ func main() {
         
         dl.deDupeDomains()
         dl.resolvePunycode()
+        dl.extractDomainParts()
 
-        // Iterate over the list of domains.
-        for _, d := range dl.domains {
-          p, err := newDomainParts(d)
-          if err != nil{
-            logger.Print(err.Error())
-          }
+        for _, p := range dl.domains {
           fmt.Printf("Inp:\t%s\nDom:\t%s\nSub:\t%s\nTLD:\t%s\n*****\n", 
                      p.raw, p.domain, p.subdomain, p.tld)
         }
