@@ -39,6 +39,13 @@ type domainList struct {
   suspicious []int // suspicious indicators
 }
 
+type domainParts struct {
+  raw string
+  domain string
+  subdomain string
+  tld string
+}
+
 // newDomainList constructs a new domainList from a JsonQuery object.
 func newDomainList(jq jsonq.JsonQuery) (*domainList, error) {
   // Extract the domains from jq["data"]["leaf_cert"]["all_domains"].
@@ -52,7 +59,30 @@ func newDomainList(jq jsonq.JsonQuery) (*domainList, error) {
   }, nil
 }
 
-// unicodeToASCII replaces unicode characters with their similar ASCII versions.
+// newDomainParts deconstructs an input 'domain' into a subdomain, domain, and tld struct.
+func newDomainParts(d string) (*domainParts, error) {
+  // Use public suffix list data to extract the domain and TLD.
+  tl, dom, err := gotld.GetTld(d)
+  if err != nil{
+    return nil, errors.New("Error extracting tld and domain from domain: " + d + err.Error())
+  }
+
+  subd := strings.Replace(d, dom, "", 1)
+
+  // If there was a subdomain, remove the trailing dot.
+  if strings.HasSuffix(subd, ".") {
+    subd = subd[:len(subd)-1]
+  }
+
+  return &domainParts{
+    raw: d,
+    domain: dom,
+    subdomain: subd,
+    tld: tl.Tld,
+  }, nil
+}
+
+// unicodeToASCII replaces unicode characters with similar ASCII versions.
 func unicodeToASCII(domain string) string {
   var str string
 
@@ -87,6 +117,28 @@ func (dl *domainList) deDupeDomains() {
   dl.domains = result
 }
 
+// resolvePunycode replaces IDN representations with an ASCII approximation in a domainList.
+func (dl *domainList) resolvePunycode() {
+  result := []string{}
+
+  for _, domain := range dl.domains {
+    // For PunyCode domains, get a Unicode representation.
+    if strings.HasPrefix(domain, "xn--") {
+      unicodeDomain, err := idna.Punycode.ToUnicode(domain)
+      if err != nil{
+        logger.Print("Error converting punycode to unicode")
+      }
+      fmt.Printf("XN:  %s\nUni: %s\n", domain, unicodeDomain)
+      result = append(result, unicodeToASCII(unicodeDomain))
+    } else {
+      result = append(result, domain)
+    }
+  }
+
+  // Overwrite the receivers domains list.
+  dl.domains = result
+}
+
 func main() {
 
   logger.SetOutput(os.Stderr)
@@ -104,35 +156,16 @@ func main() {
         }
         
         dl.deDupeDomains()
+        dl.resolvePunycode()
 
         // Iterate over the list of domains.
         for _, d := range dl.domains {
-          // Use public suffix list data to extract the domain and TLD.
-          tld, domain, err := gotld.GetTld(d)
+          p, err := newDomainParts(d)
           if err != nil{
-            logger.Printf("Error extracting tld and domain from domain: %s", d)
+            logger.Print(err.Error())
           }
-
-          // For PunyCode domains, get a Unicode representation.
-          if strings.HasPrefix(domain, "xn--") {
-            unicodeDomain, err := idna.Punycode.ToUnicode(domain)
-            asciiUnicodeDomain := unicodeToASCII(unicodeDomain)
-            if err != nil{
-              logger.Print("Error converting punycode to unicode")
-            }
-
-            fmt.Printf("Uni:\t%s\nASC:\t%s\n", unicodeDomain, asciiUnicodeDomain)
-
-          }
-
-          subdomain := strings.Replace(d, domain, "", 1)
-
-          // If there was a subdomain, remove the trailing dot.
-          if strings.HasSuffix(subdomain, ".") {
-            subdomain = subdomain[:len(subdomain)-1]
-          }
-
-          fmt.Printf("Inp:\t%s\nDom:\t%s\nSub:\t%s\nTLD:\t%s\n*****\n", d, domain, subdomain, tld.Tld)
+          fmt.Printf("Inp:\t%s\nDom:\t%s\nSub:\t%s\nTLD:\t%s\n*****\n", 
+                     p.raw, p.domain, p.subdomain, p.tld)
         }
       
       case err := <-errStream:
