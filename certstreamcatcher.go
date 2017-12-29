@@ -34,7 +34,9 @@ var (
 )
 
 type domainList struct {
-  domains []string
+  domains []string // domains in each certificate
+  phishing []int   // phishing indicators
+  suspicious []int // suspicious indicators
 }
 
 // newDomainList constructs a new domainList from a JsonQuery object.
@@ -48,13 +50,6 @@ func newDomainList(jq jsonq.JsonQuery) (*domainList, error) {
   return &domainList{
     domains: d,
   }, nil
-}
-
-// newDomainListFromArray constructs a new domainList from an array of strings.
-func newDomainListFromArray(d []string) (*domainList) {
-  return &domainList{
-    domains: d,
-  }
 }
 
 // unicodeToASCII replaces unicode characters with their similar ASCII versions.
@@ -71,7 +66,7 @@ func unicodeToASCII(domain string) string {
   return string(str)
 }
 
-// deDupeDomains replaces wildcards in a list of domains and returns a slice of domains.
+// deDupeDomains replaces wildcards in a domainList.
 func (dl *domainList) deDupeDomains() {
 
   seen := map[string]bool{}
@@ -88,10 +83,8 @@ func (dl *domainList) deDupeDomains() {
       result = append(result, domain)
     }
   }
+  // Overwrite the receivers domains list.
   dl.domains = result
-  /*dl = &domainList{
-    domains: result,
-  }*/
 }
 
 func main() {
