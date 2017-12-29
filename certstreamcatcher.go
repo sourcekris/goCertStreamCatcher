@@ -30,6 +30,7 @@ var (
     "å":"a", "п":"n","ъ":"b","ä":"a", "ç":"c","ê":"e", "ë":"e", 
     "ï": "i", "î":"i","ậ":"a","ḥ":"h","ý":"y", "ṫ":"t", "ẇ": "w", 
     "ḣ": "h", "ã": "a", "ì": "i","ú":"u","ð": "o", "æ": "ae",
+    "м":"m", "л": "n",
   }
 )
 
@@ -38,6 +39,7 @@ type domainParts struct {
   domain string
   subdomain string
   tld string
+  ascii string
 }
 
 type domainList struct {
@@ -118,26 +120,20 @@ func (dl *domainList) deDupeDomains() {
   dl.rawDomains = result
 }
 
-// resolvePunycode replaces IDN representations with an ASCII approximation in a domainList.
-func (dl *domainList) resolvePunycode() {
-  result := []string{}
-
-  for _, domain := range dl.rawDomains {
-    // For PunyCode domains, get a Unicode representation.
-    if strings.HasPrefix(domain, "xn--") {
-      unicodeDomain, err := idna.Punycode.ToUnicode(domain)
-      if err != nil{
-        logger.Print("Error converting punycode to unicode")
-      }
-      fmt.Printf("XN:  %s\nUni: %s\n", domain, unicodeDomain)
-      result = append(result, unicodeToASCII(unicodeDomain))
-    } else {
-      result = append(result, domain)
+// resolvePunycode examines the IDN latin representation to find an ASCII approximation.
+func (p *domainParts) resolvePunycode() {
+  // For PunyCode domains, get a Unicode representation.
+  if strings.Contains(p.raw, "xn--") {
+    unicodeDomain, err := idna.Punycode.ToUnicode(p.raw)
+    if err != nil{
+      logger.Print("Error converting punycode to unicode")
     }
+    fmt.Printf("XN:  %s\nUni: %s\n", p.raw, unicodeDomain)
+    p.ascii = unicodeToASCII(unicodeDomain)
+  } else {
+    p.ascii = p.raw
   }
-
-  // Overwrite the receivers domains list.
-  dl.rawDomains = result
+  fmt.Printf("p.raw: %s\np.ascii: %s\n", p.raw, p.ascii)
 }
 
 func (dl *domainList) extractDomainParts() {
@@ -149,6 +145,8 @@ func (dl *domainList) extractDomainParts() {
     if err != nil{
       logger.Print(err.Error())
     }
+
+    p.resolvePunycode()
 
     result = append(result, *p)
   }
@@ -173,13 +171,14 @@ func main() {
         }
         
         dl.deDupeDomains()
-        dl.resolvePunycode()
         dl.extractDomainParts()
 
-        for _, p := range dl.domains {
-          fmt.Printf("Inp:\t%s\nDom:\t%s\nSub:\t%s\nTLD:\t%s\n*****\n", 
-                     p.raw, p.domain, p.subdomain, p.tld)
-        }
+        /*for _, p := range dl.domains {
+          if strings.HasPrefix(p.raw, "xn--") {
+            fmt.Printf("Inp:\t%s\nDom:\t%s\nSub:\t%s\nTLD:\t%s\n*****\n", 
+                       p.raw, p.domain, p.subdomain, p.tld)
+          }
+        }*/
       
       case err := <-errStream:
         logger.Print(err)
