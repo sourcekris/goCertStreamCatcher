@@ -2,6 +2,7 @@ package main
 
 import (
   "bytes"
+  "errors"
   "fmt"
   "log"
   "os"
@@ -9,8 +10,9 @@ import (
   "strings"
 
   "golang.org/x/net/idna"
+  "github.com/jmoiron/jsonq"
   "github.com/CaliDog/certstream-go" // certstream api library
-  "github.com/forease/gotld" // determine a tld using the public suffix list
+  "github.com/sourcekris/gotld" // determine the TLD
 )
 
 var (
@@ -27,9 +29,33 @@ var (
     "â": "a", "ı": "i", "ᴡ":"w", "α":"a","ρ":"p","ε":"e","ι":"l", 
     "å":"a", "п":"n","ъ":"b","ä":"a", "ç":"c","ê":"e", "ë":"e", 
     "ï": "i", "î":"i","ậ":"a","ḥ":"h","ý":"y", "ṫ":"t", "ẇ": "w", 
-    "ḣ": "h", "ã": "a", "ì": "i","ú":"u","ð", "o", "æ", "ae",
+    "ḣ": "h", "ã": "a", "ì": "i","ú":"u","ð": "o", "æ": "ae",
   }
 )
+
+type domainList struct {
+  domains []string
+}
+
+// newDomainList constructs a new domainList from a JsonQuery object.
+func newDomainList(jq jsonq.JsonQuery) (*domainList, error) {
+  // Extract the domains from jq["data"]["leaf_cert"]["all_domains"].
+  d, err := jq.ArrayOfStrings("data", "leaf_cert", "all_domains")
+  if err != nil{
+    return nil, errors.New("Error extracting domains from certstream: " + err.Error())
+  }
+
+  return &domainList{
+    domains: d,
+  }, nil
+}
+
+// newDomainListFromArray constructs a new domainList from an array of strings.
+func newDomainListFromArray(d []string) (*domainList) {
+  return &domainList{
+    domains: d,
+  }
+}
 
 // unicodeToASCII replaces unicode characters with their similar ASCII versions.
 func unicodeToASCII(domain string) string {
@@ -45,6 +71,29 @@ func unicodeToASCII(domain string) string {
   return string(str)
 }
 
+// deDupeDomains replaces wildcards in a list of domains and returns a slice of domains.
+func (dl *domainList) deDupeDomains() {
+
+  seen := map[string]bool{}
+  result := []string{}
+
+  for _, domain := range dl.domains {
+    // Replace wildcard cert with a generic subdomain.
+    if strings.HasPrefix(domain, "*.") {
+      domain = strings.Replace(domain, "*.", "www.", 1)
+    }
+
+    if seen[domain] != true {
+      seen[domain] = true
+      result = append(result, domain)
+    }
+  }
+  dl.domains = result
+  /*dl = &domainList{
+    domains: result,
+  }*/
+}
+
 func main() {
 
   logger.SetOutput(os.Stderr)
@@ -55,20 +104,16 @@ func main() {
   for {
     select {
       case jq := <-stream:
-        // Extract the domains from jq["data"]["leaf_cert"]["all_domains"].
-        domains, err := jq.ArrayOfStrings("data", "leaf_cert", "all_domains")
+        dl, err := newDomainList(jq)
         if err != nil{
-          logger.Fatalf("Error extracting domains from certstream: %s", err)
+          logger.Printf(err.Error())
+          continue
         }
+        
+        dl.deDupeDomains()
 
         // Iterate over the list of domains.
-        for _, d := range domains {
-
-          // Replace wildcard cert with a generic subdomain.
-          if strings.HasPrefix(d, "*.") {
-            d = strings.Replace(d, "*.", "www.", 1)
-          }
-
+        for _, d := range dl.domains {
           // Use public suffix list data to extract the domain and TLD.
           tld, domain, err := gotld.GetTld(d)
           if err != nil{
