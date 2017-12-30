@@ -35,11 +35,11 @@ var (
 )
 
 type domainParts struct {
-  raw string
-  domain string
-  subdomain string
-  tld string
-  ascii string
+  raw map[string]string
+  domain map[string]string
+  subdomain map[string]string
+  tld map[string]string
+  hasPunycode bool
 }
 
 type domainList struct {
@@ -62,6 +62,18 @@ func newDomainList(jq jsonq.JsonQuery) (*domainList, error) {
   }, nil
 }
 
+// getSubDomain takes a raw input and a domain and returns the subdomain portion.
+func getSubDomain(r string, d string) string {
+  subd := strings.Replace(r, d, "", 1)
+
+  // If there was a subdomain, remove the trailing dot.
+  if strings.HasSuffix(subd, ".") {
+    subd = subd[:len(subd)-1]
+  }
+
+  return subd
+}
+
 // newDomainParts deconstructs an input 'domain' into a subdomain, domain, and tld struct.
 func newDomainParts(d string) (*domainParts, error) {
   // Use public suffix list data to extract the domain and TLD.
@@ -70,19 +82,30 @@ func newDomainParts(d string) (*domainParts, error) {
     return nil, errors.New("Error extracting tld and domain from domain: " + d + err.Error())
   }
 
-  subd := strings.Replace(d, dom, "", 1)
-
-  // If there was a subdomain, remove the trailing dot.
-  if strings.HasSuffix(subd, ".") {
-    subd = subd[:len(subd)-1]
+  dp := &domainParts{
+    raw: map[string]string{"original":d},
+    domain: map[string]string{"original":dom},
+    subdomain: map[string]string{"original":getSubDomain(d, dom)},
+    tld: map[string]string{"original":tl.Tld},
+    hasPunycode: false,
   }
 
-  return &domainParts{
-    raw: d,
-    domain: dom,
-    subdomain: subd,
-    tld: tl.Tld,
-  }, nil
+  // For a punycode domain, lets also get ascii items for domainParts
+  if strings.Contains(d, "xn--") {
+    dp.hasPunycode = true
+    dp.raw["ascii"] = resolvePunycode(d)
+
+    tl, dom, err = gotld.GetTld(dp.raw["ascii"])
+    if err != nil{
+      return dp, errors.New("Error extracting tld and domain from punycode domain: " + d + err.Error())
+    }
+
+    dp.domain["ascii"] = dom
+    dp.subdomain["ascii"] = getSubDomain(dp.raw["ascii"], dp.domain["ascii"])
+    dp.tld["ascii"] = tl.Tld
+  }
+
+  return dp, nil
 }
 
 // unicodeToASCII replaces unicode characters with similar ASCII versions.
@@ -106,7 +129,7 @@ func (dl *domainList) deDupeDomains() {
   result := []string{}
 
   for _, domain := range dl.rawDomains {
-    // Replace wildcard cert with a generic subdomain.
+    // Replace wildcards with a generic subdomain.
     if strings.HasPrefix(domain, "*.") {
       domain = strings.Replace(domain, "*.", "www.", 1)
     }
@@ -121,19 +144,19 @@ func (dl *domainList) deDupeDomains() {
 }
 
 // resolvePunycode examines the IDN latin representation to find an ASCII approximation.
-func (p *domainParts) resolvePunycode() {
-  // For PunyCode domains, get a Unicode representation.
-  if strings.Contains(p.raw, "xn--") {
-    unicodeDomain, err := idna.Punycode.ToUnicode(p.raw)
-    if err != nil{
-      logger.Print("Error converting punycode to unicode")
-    }
-    fmt.Printf("XN:  %s\nUni: %s\n", p.raw, unicodeDomain)
-    p.ascii = unicodeToASCII(unicodeDomain)
-  } else {
-    p.ascii = p.raw
+func resolvePunycode(d string) string {
+  if !strings.Contains(d, "xn--") {
+    return d
   }
-  fmt.Printf("p.raw: %s\np.ascii: %s\n", p.raw, p.ascii)
+
+  unicodeDomain, err := idna.Punycode.ToUnicode(d)
+  if err != nil{
+    logger.Print("Error converting punycode to unicode")
+  }
+  // fmt.Printf("XN:  %s\nUni: %s\n", d, unicodeDomain)
+
+  // This is a safe noop when the domain failed to convert to Unicode.
+  return unicodeToASCII(unicodeDomain)
 }
 
 func (dl *domainList) extractDomainParts() {
@@ -145,9 +168,6 @@ func (dl *domainList) extractDomainParts() {
     if err != nil{
       logger.Print(err.Error())
     }
-
-    p.resolvePunycode()
-
     result = append(result, *p)
   }
 
@@ -173,12 +193,10 @@ func main() {
         dl.deDupeDomains()
         dl.extractDomainParts()
 
-        /*for _, p := range dl.domains {
-          if strings.HasPrefix(p.raw, "xn--") {
-            fmt.Printf("Inp:\t%s\nDom:\t%s\nSub:\t%s\nTLD:\t%s\n*****\n", 
-                       p.raw, p.domain, p.subdomain, p.tld)
-          }
-        }*/
+        for _, dp := range dl.domains {
+          fmt.Printf("dp.raw = %s\ndp.domain = %s\ndp.subdomain = %s\ndp.tld = %s\n", 
+                      dp.raw, dp.domain, dp.subdomain, dp.tld)
+        }
       
       case err := <-errStream:
         logger.Print(err)
