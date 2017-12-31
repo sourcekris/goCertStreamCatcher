@@ -2,7 +2,27 @@ package main
 
 import (
   "strings"
+  "regexp"
 )
+
+// isEmpty is a map helper function to see if we have no values.
+func isEmpty(m map[string]string) bool {
+  for _, v := range m {
+    if v == "" {
+      return true
+    }
+  }
+  return false
+}
+
+// getKeywords returns an array of keywords that match values in a map[string]string.
+func getKeywords(m map[string]string, r *regexp.Regexp) []string {
+  var keywords []string
+  for _, v := range m {
+    keywords = r.FindAllString(v, -1) 
+  }
+  return keywords
+}
 
 // getSubDomain takes a raw input and a domain and returns the subdomain portion.
 func getSubDomain(r string, d string) string {

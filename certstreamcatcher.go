@@ -17,6 +17,8 @@ var (
   phishingRe = regexp.MustCompile("(?:yobit|bitfinex|etherdelta|iqoption|localbitcoins|etoto|ethereum|wallet|mymonero|visa|blockchain|bitflyer|coinbase|hitbtc|lakebtc|bitfinex|bitconnect|coinsbank|moneypaypal|moneygram|westernunion|bankofamerica|wellsfargo|itau|bradesco|nubank|paypal|bittrex|blockchain|netflix|gmail|yahoo|google|apple|amazon)")
   whiteList = regexp.MustCompile("(?:sni\\d+\\.cloudflaressl\\.com)")
   freeCaRe = regexp.MustCompile("(?:Let\\'s\\ Encrypt|StartSSL|Free\\ SSL|CACert\\ free\\ certificate|Cloudflare)")
+  dashes = regexp.MustCompile("\\-")
+  dots = regexp.MustCompile("\\.")
 )
 
 /* 
@@ -31,39 +33,53 @@ func countSubdomains(s string) int {
 
 // isPhishing checks if a domainList contains phishing domains. 
 func (dl *domainList) isPhishing() {
-  // Is the issuer an issuer of free SSL certificates?
-  for _, ca := range dl.subjects {
-    if freeCaRe.MatchString(ca) {
-      dl.suspicious = append(dl.suspicious, 30)
+  
+  var suspicious = false
+
+  // Free certificates are more likely to be used for phishing
+  for _, subject := range dl.subjets {
+    if freeCaRe.Match(subject) {
+      suspicious = true
     }
   }
-  
-  // Does the domain contain phishing keywords?
-  // dl.domains is a list of domainParts
+
   for _, dp := range dl.domains {
-    // dp.raw is a map[string]string containing original and transformed domains.
-    for k, v := range dp.raw {
-      // If there's one match to the whitelist, remove all tags and continue.
-      if whiteList.MatchString(v) {
-        dl.phishing = dl.phishing[:0]
-        dl.suspicious = dl.suspicious[:0]
-        continue
+    // If we didnt extract a domain or subdomain, then continue.
+    if isEmpty(dp.domain) || isEmpty(dp.subdomain) {
+      continue
+    }
+  
+    // Extract the keywords from the dp maps.
+    keywords := getKeywords(dp.raw, phishingRe)
+    domainKeywords := getKeywords(dp.domain, phishingRe)
+    subDomainKeywords := getKeywords(dp.subdomain, phishingRe)
+
+    dashes := len(getKeywords(dp.raw, dashes))
+    dots := len(getKeywords(dp.raw, dots))
+
+    if dp.hasPunycode {
+      punycodeKeywords := phishingRe.FindAllString(dp.raw["ascii"], -1)
+
+      if len(keywords > 0 && punycodeKeywords > 0 {
+        fmt.Printf("[!] Punycode %s = %s (%s, %s)\n", 
+                   dp.raw["original"], dp.raw["ascii"], 
+                   keywords, punycodeKeywords)
       }
+    }
 
-      if phishingRe.MatchString(v) {
-        dl.phishing = append(dl.phishing, 100) // 100 points for a match on any value 
-
-        // If the ascii version of the domain matches the regex but the original doesnt, then
-        // this is likely a "homograph attack"
-        if k == "ascii" && !phishingRe.MatchString(dp.raw["original"]) {
-          dl.phishing = append(dl.phishing,20) // Additional 20 points for the homograph attack
-          dl.suspicious = append(dl.suspicious, 20) // This is also quite suspicious.
-        }
+    if len(tlds) > 0 {
+      if suspicious {
+        
       }
+    }
 
-
-    }  
+    if len(keywords) > 0 || len(domainKeywords) > 0 || len(subDomainKeywords) > 0 {
+      fmt.Printf("----\ndp.raw = %s\nkeywords = %s\ndomainKeywords = %s\nsubDomainKeywords = %s\ndashes = %d\ndots = %d\n", 
+               dp.raw, keywords, domainKeywords, subDomainKeywords, dashes, dots)  
+    }
+    
   }
+  
 }
 
 func sumArray (a []int) int {
