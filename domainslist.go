@@ -6,7 +6,7 @@ import (
 )
 
 type domainList struct {
-  subjectAggregated []string // 
+  subjects []string // 
   rawDomains []string // domains from the certificate
   phishing []int   // phishing indicators
   suspicious []int // suspicious indicators
@@ -29,8 +29,8 @@ func newDomainList(jq jsonq.JsonQuery) (*domainList, error) {
   var subjects []string
 
   // Build a list of the certificate chain's subject.aggregated fields.  
-  for _, i := range chain {
-    cert := jsonq.NewQuery(i)
+  for _, c := range chain {
+    cert := jsonq.NewQuery(c)
     s, err := cert.String("subject", "aggregated")
     if err != nil{
       return nil, errors.New("Error extracting certificate chain from certstream: " + err.Error())
@@ -40,7 +40,7 @@ func newDomainList(jq jsonq.JsonQuery) (*domainList, error) {
   }
 
   return &domainList{
-    subjectAggregated: subjects,
+    subjects: subjects,
     rawDomains: d,
   }, nil
 }
