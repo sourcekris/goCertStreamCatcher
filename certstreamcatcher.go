@@ -14,6 +14,7 @@ const (
   RL = "\r\033[K"
   RED = "\033[31m\033[4m"
   YEL = "\033[33m\033[4m"
+  WHI = "\033[37m\033[4m"
   RES = "\033[0m"
 )
 
@@ -21,8 +22,7 @@ var (
   buf bytes.Buffer
   logger = log.New(&buf, "certstream: ", log.Lshortfile)
 
-  phishingRe = regexp.MustCompile("(?:yobit|bitfinex|etherdelta|iqoption|localbitcoins|etoto|ethereum|wallet|mymonero|visa|blockchain|bitflyer|coinbase|hitbtc|lakebtc|bitfinex|bitconnect|coinsbank|moneypaypal|moneygram|westernunion|bankofamerica|wellsfargo|itau|bradesco|nubank|paypal|bittrex|blockchain|netflix|gmail|yahoo|google|apple|amazon)")
-  whiteList = regexp.MustCompile("(?:sni\\d+\\.cloudflaressl\\.com)")
+  phishingRe = regexp.MustCompile("(?:yobit|bitfinex|etherdelta|iqoption|localbitcoins|etoto|ethereum|wallet|mymonero|blockchain|bitflyer|coinbase|hitbtc|lakebtc|bitfinex|bitconnect|coinsbank|moneypaypal|moneygram|westernunion|bankofamerica|wellsfargo|itau|bradesco|nubank|paypal|bittrex|blockchain|netflix|gmail|yahoo|google|appleid|amazon)")
   freeCaRe = regexp.MustCompile("(?:Let\\'s\\ Encrypt|StartSSL|Free\\ SSL|CACert\\ free\\ certificate|Cloudflare)")
   dashes = regexp.MustCompile("\\-")
   dots = regexp.MustCompile("\\.")

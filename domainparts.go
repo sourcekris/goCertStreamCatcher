@@ -61,6 +61,7 @@ func (dl *domainList) extractDomainParts() {
     p, err := newDomainParts(d)
     if err != nil{
       logger.Print(err.Error())
+      continue
     }
     result = append(result, *p)
   }

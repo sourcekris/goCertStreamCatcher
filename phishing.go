@@ -69,7 +69,7 @@ func (dl *domainList) isPhishing() {
           }
 
           if hasKeywordsPrefix(keywords, domainKeywords) && len(domainKeywords) >= 1 {
-            fmt.Printf("%s[!] Potential %s%s%s\n", RL, YEL, dp.raw["original"], RES)
+            fmt.Printf("%s[!] Potential %s%s%s\n", RL, WHI, dp.raw["original"], RES)
             return
           }
         }
@@ -93,7 +93,7 @@ func (dl *domainList) isPhishing() {
         }
 
         if hasKeywordsPrefix(keywords, domainKeywords) && len(domainKeywords) >= 1 {
-          fmt.Printf("%s[!] Potential %s%s%s\n", RL, YEL, dp.raw["original"], RES)
+          fmt.Printf("%s[!] Potential %s%s%s\n", RL, WHI, dp.raw["original"], RES)
           return
         }
       }
