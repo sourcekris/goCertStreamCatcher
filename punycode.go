@@ -53,5 +53,5 @@ func resolvePunycode(d string) string {
   }
 
   // This is a safe noop when the domain failed to convert to Unicode.
-  return unicodeToASCII(unicodeDomain)
+  return unicodeDomain
 }

@@ -2,6 +2,7 @@ package main
 
 import (
   "errors"
+  "strings"
   "github.com/jmoiron/jsonq"
 )
 
@@ -21,14 +22,20 @@ func newDomainList(jq jsonq.JsonQuery) (*domainList, error) {
     return nil, errors.New("Error extracting domains from certstream: " + err.Error())
   }
 
+  // Make sure all domain strings are lowercase.
+  var lowerD []string
+  for _, s := range d {
+    lowerD = append(lowerD, strings.ToLower(s))
+  }
+
+  // Extract the certificate chain objects from the certstream.
   chain, err := jq.ArrayOfObjects("data", "chain")
   if err != nil{
     return nil, errors.New("Error extracting certificate chain from certstream: " + err.Error())
   }
 
-  var subjects []string
-
   // Build a list of the certificate chain's subject.aggregated fields.  
+  var subjects []string
   for _, c := range chain {
     cert := jsonq.NewQuery(c)
     s, err := cert.String("subject", "aggregated")
@@ -41,6 +48,6 @@ func newDomainList(jq jsonq.JsonQuery) (*domainList, error) {
 
   return &domainList{
     subjects: subjects,
-    rawDomains: d,
+    rawDomains: lowerD,
   }, nil
 }

@@ -33,16 +33,20 @@ func newDomainParts(d string) (*domainParts, error) {
   // For a punycode domain, lets also get ascii items for domainParts
   if strings.Contains(d, "xn--") {
     dp.hasPunycode = true
-    dp.raw["ascii"] = resolvePunycode(d)
+    dp.raw["unicode"] = resolvePunycode(d)
+    dp.raw["ascii"] = unicodeToASCII(dp.raw["unicode"])
 
-    tl, dom, err = gotld.GetTld(dp.raw["ascii"])
+    tl, dom, err = gotld.GetTld(dp.raw["unicode"])
     if err != nil{
-      return dp, errors.New("Error extracting tld and domain from punycode domain: " + d + err.Error())
+      return dp, errors.New("Error extracting tld and domain from punycode domain: " + d + " " + err.Error())
     }
 
-    dp.domain["ascii"] = dom
+    dp.domain["unicode"] = dom
+    dp.domain["ascii"] = unicodeToASCII(dom)
+    dp.subdomain["unicode"] = getSubDomain(dp.raw["unicode"], dp.domain["unicode"])
     dp.subdomain["ascii"] = getSubDomain(dp.raw["ascii"], dp.domain["ascii"])
-    dp.tld["ascii"] = tl.Tld
+    dp.tld["unicode"] = tl.Tld
+    dp.tld["ascii"] = unicodeToASCII(tl.Tld)
   }
 
   return dp, nil
@@ -62,4 +66,17 @@ func (dl *domainList) extractDomainParts() {
   }
 
   dl.domains = result
+}
+
+// containsTld checks if the domainParts contains a tld in a list of tlds.
+func (dp *domainParts) containsTld(t []string) bool {
+  for _, a := range t {
+    for _, b := range dp.tld {
+      if a == b {
+        return true
+      }
+    }
+  }
+
+  return false
 }

@@ -24,6 +24,18 @@ func getKeywords(m map[string]string, r *regexp.Regexp) []string {
   return keywords
 }
 
+// hasKeywordsPrefix checks if any of the b keywords start with any of the a keywords.
+func hasKeywordsPrefix(a, b []string) bool {
+  for _, k := range a {
+    for _, t := range b {
+      if strings.HasPrefix(t, k) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
 // getSubDomain takes a raw input and a domain and returns the subdomain portion.
 func getSubDomain(r string, d string) string {
   subd := strings.Replace(r, d, "", 1)
