@@ -9,8 +9,6 @@ import (
 type domainList struct {
   subjects []string // 
   rawDomains []string // domains from the certificate
-  phishing []int   // phishing indicators
-  suspicious []int // suspicious indicators
   domains []domainParts
 }
 

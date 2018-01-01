@@ -136,13 +136,6 @@ func main() {
         dl.deDupeDomains()
         dl.extractDomainParts()
         dl.isPhishing()
-
-        phishing := sumArray(dl.phishing)
-        suspicious := sumArray(dl.suspicious)
-
-        if phishing > 0 || suspicious > 30 {
-          fmt.Printf("dl.rawDomains = %s\ndl.phishing = %d, dl.suspicious = %d\n", dl.rawDomains, sumArray(dl.phishing), sumArray(dl.suspicious))  
-        }
               
       case err := <-errStream:
         logger.Print(err)
