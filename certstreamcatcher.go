@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"regexp"
+
+	certstream "github.com/CaliDog/certstream-go"
 	// certstream api library
 )
 
